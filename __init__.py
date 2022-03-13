@@ -1,0 +1,4 @@
+"""Chess"""
+
+class board():
+    pass

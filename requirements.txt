@@ -1,0 +1,8 @@
+Python 3.8+
+Windows (for winsound)
+
+The program uses the following built-in modules:
+random
+time
+tkinter
+winsound

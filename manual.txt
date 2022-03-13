@@ -1,0 +1,33 @@
+Features
+--------
+Make moves on the chess board by either dragging pieces or clicking on
+the piece then the square.
+Draw arrows by holding right click and dragging.
+Highlight squares by right clicking on squares.
+Change the colour of arrows and highlights by pressing any combination
+of ctrl, shift, alt.
+Hold shift when selecting pieces to show legal moves.
+Auto promotion can be turned on and temporarily disabled by holding down
+ctrl, shift, or alt.
+When auto promotion is not on, a selection menu is available to choose
+what piece to promote to. Cancel promotion by clicking anywhere else.
+
+Keyboard Shortcuts
+------------------
+left arrow: undo last move
+x: flip board 180 degrees
+r: rotate board 90 degrees clockwise
+c or l: toggle board coordinates
+h: open help
+s: open settings
+f: toggle fullscreen
+f11: toggle fullscreen
+escape: exit fullscreen
+
+Other Features
+--------------
+When hovering the mouse over pieces the cursor changes depending on
+whether the piece can be moved.
+The last move is highlighted.
+Sound when moving pieces.
+Board is resized when changing the size of the window.
