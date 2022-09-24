@@ -1,4 +1,1 @@
 """Chess"""
-
-class board():
-    pass

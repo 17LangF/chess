@@ -1,7 +1,8 @@
-Python 3.8+
+Python 3.8+ if using command line interface, otherwise 3.6+
 Windows (for winsound)
 
 The program uses the following built-in modules:
+datetime
 random
 time
 tkinter

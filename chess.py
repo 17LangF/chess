@@ -32,6 +32,8 @@ class TkBoard(tk.Frame):
         when showing the board.
     show_legal_moves : bool
         Whether to show legal moves.
+    sound : bool
+        Whether to play sounds.
     animation_speed : float
         Time in seconds per move.
     pixels : int
@@ -80,7 +82,8 @@ class TkBoard(tk.Frame):
         self.auto_promote = False
         self.coords = True
         self.rotation = 0
-        self.show_legal_moves = False
+        self.show_legal_moves = True
+        self.sound = True
         self.animation_speed = 0.2
         self.pixels = pixels = 78
 
@@ -112,10 +115,18 @@ class TkBoard(tk.Frame):
         width = size[0] * pixels
         height = size[1] * pixels
 
+        # Frame
         tk.Frame.__init__(self, window)
         self.canvas = tk.Canvas(self, highlightthickness=0, width=width,
             height=height, background=self.colours_hex['background'])
         self.canvas.pack(fill='both', expand=True)
+
+        # Game start sound
+        if self.sound:
+            winsound.PlaySound(
+            f'sounds/game-start.wav', winsound.SND_FILENAME |
+            winsound.SND_ASYNC | winsound.SND_NODEFAULT
+        )
 
         # Key bindings
         self.canvas.bind('<Motion>', self.motion)
@@ -151,8 +162,6 @@ class TkBoard(tk.Frame):
             self.images = {letter: tk.PhotoImage(file=f'images/{name}.png')
                            .zoom(zoom).subsample(subsample)
                            for letter, name in names.items()}
-        else:
-            pixels = self.pixels
 
         self.canvas.delete('all')
         for y in range(size[1]):
@@ -190,43 +199,7 @@ class TkBoard(tk.Frame):
             self.draw_arrow(*coords, colour)
 
         # Coordinates
-        if self.coords:
-            if self.rotation == 1:
-                column = [chr(97+x) for x in range(size[0])]
-                row = range(1, size[1]+1)
-                column_colour = size[0]
-                row_colour = 1
-            elif self.rotation == 2:
-                column = range(1, size[1]+1)
-                row = [chr(96+x) for x in range(size[0], 0, -1)]
-                column_colour = 1
-                row_colour = size[1]
-            elif self.rotation == 3:
-                column = [chr(96+x) for x in range(size[0], 0, -1)]
-                row = range(size[1], 0, -1)
-                column_colour = size[1]
-                row_colour = sum(size) + 1
-            else:
-                column = range(size[1], 0, -1)
-                row = [chr(97+x) for x in range(size[0])]
-                column_colour = sum(size) + 1
-                row_colour = size[0]
-
-            font = ('Segoe UI', int(0.17 * pixels), 'bold')
-            x = 0.12 * pixels
-            for i, char in enumerate(column):
-                y = (i + 0.17) * pixels
-                colour = 'dark' if (i + column_colour) % 2 else 'light'
-                colour = self.colours_hex[colour]
-                self.canvas.create_text(x, y, text=char, fill=colour,
-                                        font=font, tags='coords')
-            y = (size[(self.rotation + 1) % 2] - 0.17) * pixels
-            for i, char in enumerate(row):
-                x = (i + 0.85) * pixels
-                colour = 'dark' if (i + row_colour) % 2 else 'light'
-                colour = self.colours_hex[colour]
-                self.canvas.create_text(x, y, text=char, fill=colour,
-                                        font=font, tags='coords')
+        self.update_coords()
 
         # Move hints
         move_hints = self.move_hints
@@ -323,6 +296,53 @@ class TkBoard(tk.Frame):
 
         self.arrows[coords] = colour
 
+    def update_coords(self):
+        """Update board coordinates."""
+        # Remove coordinates
+        if not self.coords:
+            self.canvas.delete('coords')
+            return
+
+        # Add coordinates
+        size = self.size
+        pixels = self.pixels
+        if self.rotation == 1:
+            column = [chr(97+x) for x in range(size[0])]
+            row = range(1, size[1]+1)
+            column_colour = size[0]
+            row_colour = 1
+        elif self.rotation == 2:
+            column = range(1, size[1]+1)
+            row = [chr(96+x) for x in range(size[0], 0, -1)]
+            column_colour = 1
+            row_colour = size[1]
+        elif self.rotation == 3:
+            column = [chr(96+x) for x in range(size[0], 0, -1)]
+            row = range(size[1], 0, -1)
+            column_colour = size[1]
+            row_colour = sum(size) + 1
+        else:
+            column = range(size[1], 0, -1)
+            row = [chr(97+x) for x in range(size[0])]
+            column_colour = sum(size) + 1
+            row_colour = size[0]
+
+        font = ('Segoe UI', int(0.17 * pixels), 'bold')
+        x = 0.12 * pixels
+        for i, char in enumerate(column):
+            y = (i + 0.17) * pixels
+            colour = 'dark' if (i + column_colour) % 2 else 'light'
+            colour = self.colours_hex[colour]
+            self.canvas.create_text(x, y, text=char, fill=colour,
+                                    font=font, tags='coords')
+        y = (size[(self.rotation + 1) % 2] - 0.17) * pixels
+        for i, char in enumerate(row):
+            x = (i + 0.85) * pixels
+            colour = 'dark' if (i + row_colour) % 2 else 'light'
+            colour = self.colours_hex[colour]
+            self.canvas.create_text(x, y, text=char, fill=colour,
+                                    font=font, tags='coords')
+
     def add_move_hint(self, x: int, y: int):
         """Add move hint on square at (x, y)."""
         colour = 'dark' if (x + y + sum(self.size)) % 2 else 'light'
@@ -354,7 +374,7 @@ class TkBoard(tk.Frame):
         piece = self.canvas.find_withtag((sx, sy, '&&piece'))
         if not (sx, sy) in self.highlights:
             self.colour_square(sx, sy, self.colours_rgb['highlight'], 0.5)
-        self.canvas.coords(piece, *self.coords_to_pos(x, y))
+        self.canvas.itemconfig(piece, state=tk.HIDDEN)
         dy = 1 if self.board.active == 'w' else -1
         self.canvas.create_rectangle(
             *self.coords_to_pos(x-0.5, y-dy*0.5),
@@ -401,17 +421,17 @@ class TkBoard(tk.Frame):
         if self.promotion:
             index = y if self.board.active == 'w' else self.size[1] - y - 1
             move = self.promotion[0][1]
+            piece = self.canvas.find_withtag((move.x, move.y, '&&piece'))
             if x != move.nx or index >= len(self.promotion):
-                piece = self.canvas.find_withtag((move.x, move.y, '&&piece'))
-                self.canvas.coords(piece, *self.coords_to_pos(move.x, move.y))
                 self.colour_square(move.x, move.y, highlight, 0.5)
                 self.deselect_piece()
                 return
 
+            self.canvas.coords(piece, *self.coords_to_pos(move.nx, move.ny))
+            self.canvas.itemconfig(piece, state=tk.NORMAL)
             promote, move = self.promotion[index]
             self.board.move(move)
             self.canvas.delete((move.nx, move.ny, '&&piece'))
-            piece = self.canvas.find_withtag((move.x, move.y, '&&piece'))
             if self.board.board[move.ny][move.nx].colour == 'b':
                 promote = promote.lower()
             self.canvas.itemconfig(piece, image=self.images[promote],
@@ -423,11 +443,10 @@ class TkBoard(tk.Frame):
             self.colour_square(move.nx, move.ny, highlight, 0.5)
 
             # Sound
-            sound = 'promote'
             if move.name[-1] in {'+', '#'}:
-                sound = 'check'
-            winsound.PlaySound(f'sounds/{sound}.wav', winsound.SND_FILENAME |
-                               winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+                self.play_sound('check')
+            else:
+                self.play_sound('promote')
 
             self.deselect_piece()
             return
@@ -475,7 +494,7 @@ class TkBoard(tk.Frame):
     def left_drag(self, event: tk.Event):
         """Drag piece."""
         self.mouse = event.x, event.y
-        if not self.selected:
+        if not self.selected or self.promotion:
             return
         piece = self.canvas.find_withtag((*self.selected[:2], '&&piece'))
         xpos = min(max(0, event.x), self.size[self.rotation % 2] * self.pixels)
@@ -581,9 +600,26 @@ class TkBoard(tk.Frame):
     def key_press(self, event: tk.Event):
         """Keyboard shortcuts."""
         key = event.keysym.lower()
-        if key == 'left':
+        if key == 'up':
+            # Undo all moves
+            if self.mode == 'setup':
+                return
+            self.undo(True)
+        elif key == 'left':
             # Undo last move
+            if self.mode == 'setup':
+                return
             self.undo()
+        elif key == 'right':
+            # Redo last undone move
+            if self.mode == 'setup':
+                return
+            self.redo()
+        elif key == 'down':
+            # Redo all moves
+            if self.mode == 'setup':
+                return
+            self.redo(True)
         elif key == 'x':
             # Flip how board is shown
             self.rotation ^= 2
@@ -595,7 +631,10 @@ class TkBoard(tk.Frame):
         elif key in {'c', 'l'}:
             # Toggle board coordinates
             self.coords = not self.coords
-            self.refresh()
+            self.update_coords()
+            self.canvas.tag_raise('movehint')
+            self.canvas.tag_raise('piece')
+            self.canvas.tag_raise('promotion')
         elif key == 'h':
             # Open help
             help_window = tk.Toplevel()
@@ -631,10 +670,15 @@ class TkBoard(tk.Frame):
 
     def deselect_piece(self):
         """Deselect piece and remove move hints."""
+        if self.promotion:
+            sx, sy, _ = self.selected
+            piece = self.canvas.find_withtag((sx, sy, '&&piece'))
+            self.canvas.itemconfig(piece, state=tk.NORMAL)
+            self.canvas.delete('promotion')
+            self.promotion = []
+
         self.canvas.delete('movehint')
-        self.canvas.delete('promotion')
         self.move_hints = []
-        self.promotion = []
         self.selected = []
 
     def move(self, event: tk.Event, x: int, y: int):
@@ -655,6 +699,9 @@ class TkBoard(tk.Frame):
                         break
             else:
                 if not promotion:
+                    for move in self.board.illegal_moves:
+                        if move == (sx, sy, x, y):
+                            self.illegal()
                     raise ChessError
 
             # Promotion selection
@@ -664,38 +711,7 @@ class TkBoard(tk.Frame):
 
             # Move piece
             self.board.move(move)
-            sound = 'move-self'
-
-            # Highlight move
-            for coords, (colour, opacity) in list(self.highlights.items()):
-                self.colour_square(*coords, colour, opacity)
-            self.colour_square(sx, sy, self.colours_rgb['highlight'], 0.5)
-            self.colour_square(x, y, self.colours_rgb['highlight'], 0.5)
-
-            # Castle
-            if '-' in move.name:
-                rook = self.canvas.find_withtag((*move.info, '&&piece'))
-                nrx = x + (move.name == '0-0-0') * 2 - 1
-                self.canvas.itemconfig(rook, tags=((nrx, y), 'piece'))
-                sound = 'castle'
-            # En passant
-            elif move.info:
-                self.canvas.delete((*move.info, '&&piece'))
-            # Promotion
-            if '=' in move.name:
-                if self.board.board[y][x].colour == 'b':
-                    promote = promote.lower()
-                self.canvas.itemconfig(piece, image=self.images[promote])
-                sound = 'promote'
-            # Capture
-            elif move.capture:
-                sound = 'capture'
-            # Check
-            if move.name[-1] in {'+', '#'}:
-                sound = 'check'
-
-            winsound.PlaySound(f'sounds/{sound}.wav', winsound.SND_FILENAME |
-                               winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+            self.play_move(move, not event.state & 256)
 
         # Move piece in setup mode
         else:
@@ -703,48 +719,44 @@ class TkBoard(tk.Frame):
             self.board.board[sy][sx] = Piece()
             self.board.legal_moves = self.board.get_moves()
             self.canvas.coords(piece, *self.coords_to_pos(x, y))
+            self.canvas.delete((x, y, '&&piece'))
+            self.canvas.itemconfig(piece, tags=((x, y), 'piece'))
+            self.deselect_piece()
 
-        self.canvas.delete((x, y, '&&piece'))
-        self.canvas.itemconfig(piece, tags=((x, y), 'piece'))
-        self.deselect_piece()
+    def undo(self, all: bool = False):
+        """Undo last move or all moves."""
+        # Deselect piece
+        if self.selected:
+            coords = self.selected[:2]
+            piece = self.canvas.find_withtag((*coords, '&&piece'))
+            self.canvas.coords(piece, *self.coords_to_pos(*coords))
+            self.deselect_piece()
+        # Clear highlights and arrows
+        for coords, (colour, opacity) in list(self.highlights.items()):
+            self.colour_square(*coords, colour, opacity)
+        self.canvas.delete('arrow')
+        self.arrows = {}
 
-        if self.mode == 'setup':
+        # Undo all
+        if all:
+            while self.board.moves:
+                self.board.undo()
+            self.refresh()
             return
 
-        # Animate piece movement
-        if event.state & 256:
-            self.canvas.coords(piece, *self.coords_to_pos(x, y))
-            if '-' in move.name:
-                self.canvas.coords(rook, *self.coords_to_pos(nrx, y))
+        # Undo one
+        move = self.board.undo()
+        if not move:
             return
-
-        self.animate(piece, sx, sy, x, y)
-        if '-' in move.name:
-            self.animate(rook, *move.info, nrx, move.info[1])
-
-    def undo(self):
-        """Undo last move."""
-        if not self.board.moves:
-            return
-
-        move = self.board.moves[-1]
         x = move.x
         y = move.y
         nx = move.nx
         ny = move.ny
         info = move.info
-
-        # Move piece
-        self.board.undo()
         piece = self.canvas.find_withtag((nx, ny, '&&piece'))
-        self.canvas.itemconfig(piece, tags=((x, y), 'piece'))
-        self.animate(piece, nx, ny, x, y)
         sound = 'move-self'
 
         # Highlight last move
-        for coords, (colour, opacity) in list(self.highlights.items()):
-            self.colour_square(*coords, colour, opacity)
-
         if self.board.moves:
             last_move = self.board.moves[-1]
             highlight = self.colours_rgb['highlight']
@@ -753,7 +765,7 @@ class TkBoard(tk.Frame):
 
         # Castle
         if '-' in move.name:
-            nrx = nx + (move.name == '0-0-0') * 2 - 1
+            nrx = nx + (move.name.count('0') == 3) * 2 - 1
             rook = self.canvas.find_withtag((nrx, info[1], '&&piece'))
             self.canvas.itemconfig(rook, tags=(info, 'piece'))
             self.animate(rook, nrx, info[1], *info)
@@ -778,8 +790,105 @@ class TkBoard(tk.Frame):
         if move.name[-1] in {'+', '#'}:
             sound = 'check'
 
-        winsound.PlaySound(f'sounds/{sound}.wav', winsound.SND_FILENAME |
-                           winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+        self.play_sound(sound)
+
+        # Animate move
+        self.canvas.itemconfig(piece, tags=((x, y), 'piece'))
+        self.animate(piece, nx, ny, x, y)
+
+    def redo(self, redo_all: bool = False):
+        """Redo last undone move or all undone moves."""
+        # Deselect piece
+        if self.selected:
+            coords = self.selected[:2]
+            piece = self.canvas.find_withtag((*coords, '&&piece'))
+            self.canvas.coords(piece, *self.coords_to_pos(*coords))
+            self.deselect_piece()
+        # Clear highlights and arrows
+        for coords, (colour, opacity) in list(self.highlights.items()):
+            self.colour_square(*coords, colour, opacity)
+        self.canvas.delete('arrow')
+        self.arrows = {}
+
+        # Redo all
+        if redo_all:
+            while self.board.undone_moves:
+                self.board.redo()
+            self.refresh()
+            return
+
+        # Redo last
+        move = self.board.redo()
+        if not move:
+            return
+        self.play_move(move)
+
+    def play_move(self, move, animate: bool = True):
+        """Play move on screen."""
+        x = move.x
+        y = move.y
+        nx = move.nx
+        ny = move.ny
+        piece = self.canvas.find_withtag((x, y, '&&piece'))
+        sound = 'move-self'
+
+        # Highlight move
+        for coords, (colour, opacity) in list(self.highlights.items()):
+            self.colour_square(*coords, colour, opacity)
+        self.colour_square(x, y, self.colours_rgb['highlight'], 0.5)
+        self.colour_square(nx,ny, self.colours_rgb['highlight'], 0.5)
+
+        # Castle
+        if '-' in move.name:
+            rook = self.canvas.find_withtag((*move.info, '&&piece'))
+            nrx = nx + (move.name.count('0') == 3) * 2 - 1
+            self.canvas.itemconfig(rook, tags=((nrx, ny), 'piece'))
+            sound = 'castle'
+        # En passant
+        elif move.info:
+            self.canvas.delete((*move.info, '&&piece'))
+        # Promotion
+        if '=' in move.name:
+            promote = move.name[move.name.index('=') + 1]
+            if self.board.board[ny][nx].colour == 'b':
+                promote = promote.lower()
+            self.canvas.itemconfig(piece, image=self.images[promote])
+            sound = 'promote'
+        # Capture
+        elif move.capture:
+            sound = 'capture'
+        # Check
+        if move.name[-1] in {'+', '#'}:
+            sound = 'check'
+
+        self.play_sound(sound)
+
+        # End game
+        if move.type.endswith('mate'):
+            self.canvas.after(200, self.play_sound, 'game-end')
+
+        self.canvas.delete((nx, ny, '&&piece'))
+        self.canvas.itemconfig(piece, tags=((nx, ny), 'piece'))
+        self.deselect_piece()
+
+        # Animate move
+        if animate:
+            self.animate(piece, x, y, nx, ny)
+            if '-' in move.name:
+                self.animate(rook, *move.info, nrx, move.info[1])
+        else:
+            self.canvas.coords(piece, *self.coords_to_pos(nx, ny))
+            if '-' in move.name:
+                self.canvas.coords(rook, *self.coords_to_pos(nrx, ny))
+
+    def play_sound(self, sound: str):
+        """Play sound using winsound."""
+        if not self.sound:
+            return
+        winsound.PlaySound(
+            f'sounds/{sound}.wav',
+            winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT
+        )
 
     def animate(self, piece, sx: int, sy: int, x: int, y: int):
         """Animate the movement of a piece from (sx, sy) to (x, y)."""
@@ -803,6 +912,33 @@ class TkBoard(tk.Frame):
 
         start_time = time.time()
         next_frame(start_time, piece, sx, sy, x - sx, y - sy, speed)
+
+    def illegal(self):
+        """Animate illegal move red flashes and play sound."""
+        def toggle(x: int, y: int, count: int):
+            self.colour_square(x, y, self.colours_rgb['red'], 0.8)
+
+            if count:
+                self.canvas.after(250, toggle, x, y, count-1)
+            else:
+                highlight = self.highlights.get((x, y))
+                if highlight:
+                    self.colour_square(x, y, *highlight)
+                if self.is_last_move(x, y) or self.selected[:2] == [x, y]:
+                    self.colour_square(x, y, self.colours_rgb['highlight'],
+                                       0.5)
+
+        k = 'K' if self.board.active == 'w' else 'k'
+        for y in range(self.size[1]):
+            for x in range(self.size[0]):
+                if self.board.board[y][x].letter == k:
+                    break
+            else:
+                continue
+            break
+
+        self.play_sound('illegal')
+        toggle(x, y, 5)
 
     def settings(self):
         """Open settings."""
@@ -905,6 +1041,15 @@ class TkBoard(tk.Frame):
 
         print('\n'.join(board))
 
+    def perft(self, max_depth: int):
+        """Generate perft results."""
+        for depth in range(1, max_depth+1):
+            start = time.perf_counter()
+            nodes = self.board.perft(depth)
+            end = time.perf_counter()
+            run_time = end-start
+            nodes_per_second = nodes/run_time
+            print(f'{depth=} {nodes=} {run_time=} {nodes_per_second=}')
 
 def rgb_to_hex(rgb: tuple) -> str:
     """Convert RGB colour to HEX."""
@@ -913,10 +1058,8 @@ def rgb_to_hex(rgb: tuple) -> str:
 
 def command_line_interface(tkboard: TkBoard):
     """Command line interface version."""
+    board = tkboard.board
     while True:
-        board = tkboard.board
-        print(' '.join(map(str, board.legal_moves)))
-        print(len(board.legal_moves))
         print(board.get_fen())
         print(board.get_pgn())
         tkboard.print()
@@ -924,6 +1067,7 @@ def command_line_interface(tkboard: TkBoard):
             board.move(input(f"{board.active}: "))
         except ChessError:
             print("Illegal move")
+        tkboard.refresh()
 
 
 def main():
@@ -938,12 +1082,12 @@ def main():
     tkboard.grid(column=0, row=0, sticky='NEWS', padx=16, pady=16)
     window.configure(background=tkboard.colours_hex['background'])
 
-    button = tk.Button(window, text='Refresh', command=tkboard.refresh)
+    button = tk.Button(window, text='Computer', command=tkboard.refresh)
     button.grid(row=0, column=1, sticky='SE')
     window.columnconfigure(0, weight=1)
     window.rowconfigure(0, weight=1)
     window.geometry('1126x656+120+40')
-
+    window.after(0, command_line_interface, tkboard)
     tk.mainloop()
 
 

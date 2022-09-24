@@ -146,7 +146,7 @@ class Piece:
         return self.letter != ' '
 
     def __str__(self) -> str:
-        """Returns unicode symbol if standard piece else self.letter."""
+        """Return unicode symbol if standard piece else self.letter."""
         if self.letter in 'KQRBNPkqrbnp':
             return chr(9812 + 'KQRBNPkqrbnp'.index(self.letter))
         return self.letter

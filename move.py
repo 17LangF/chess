@@ -35,12 +35,15 @@ class Move:
         If move is castle, this is the coordinate of the starting square
         of the rook. If move is en passant, this is the coordinate of
         the square of the pawn which is captured. Else None.
+    type : {'normal', 'check', 'checkmate', 'stalemate'}
+        Whether the move results in check, checkmate, stalemate. If none
+        of the previous apply, the move is considered to be 'normal'.
     distance : float
         Distance the piece moving travels, calculated using the
         Pythagorean theorem.
     """
     def __init__(self, name: str, x: int, y: int, nx: int, ny: int, board,
-                 capture=None, info: tuple = None):
+                 capture=None, info: tuple = None, type: str = 'normal'):
         """
         Initiate move attributes.
 
@@ -61,12 +64,16 @@ class Move:
             square of the rook. If move is en passant, this is the
             coordinate of the square of the pawn which is captured. Else
             None.
+        type : {'normal', 'check', 'checkmate', 'stalemate'}
+            Whether the move results in check, checkmate, stalemate. If
+            none of the previous apply, the move is considered to be
+            'normal'.
         """
         self.name = name
-        self.y = y
         self.x = x
-        self.ny = ny
+        self.y = y
         self.nx = nx
+        self.ny = ny
         self.active = board.active
         self.castling = board.castling
         self.en_passant = board.en_passant
@@ -74,6 +81,7 @@ class Move:
         self.fullmove = board.fullmove
         self.capture = capture
         self.info = info
+        self.type = type
         self.distance = ((nx-x)**2 + (ny-y)**2) ** 0.5
 
     def __str__(self) -> str:

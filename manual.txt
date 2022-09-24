@@ -14,7 +14,10 @@ what piece to promote to. Cancel promotion by clicking anywhere else.
 
 Keyboard Shortcuts
 ------------------
+up arrow: undo all moves
 left arrow: undo last move
+right arrow: redo last undone move
+down arrow: redo all undone moves
 x: flip board 180 degrees
 r: rotate board 90 degrees clockwise
 c or l: toggle board coordinates
@@ -31,3 +34,4 @@ whether the piece can be moved.
 The last move is highlighted.
 Sound when moving pieces.
 Board is resized when changing the size of the window.
+Sound and red flashes when illegal move due to check is played
