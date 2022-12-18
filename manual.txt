@@ -1,5 +1,7 @@
 Features
 --------
+All chess rules supported, including castling, promotion and en passant.
+Game can end by checkmate, stalemate, 50-move rule.
 Make moves on the chess board by either dragging pieces or clicking on
 the piece then the square.
 Draw arrows by holding right click and dragging.
@@ -11,6 +13,23 @@ Auto promotion can be turned on and temporarily disabled by holding down
 ctrl, shift, or alt.
 When auto promotion is not on, a selection menu is available to choose
 what piece to promote to. Cancel promotion by clicking anywhere else.
+Share game by copying FEN or PGN.
+Name white or black player to name of computer to play computer moves.
+Set difficulty of Stockfish using WhiteElo or BlackElo.
+Evaluation bar shows the Stockfish evaluation.
+
+Computers
+---------
+Random
+Firstmove
+Stockfish [time][ms/s]
+
+Variants
+--------
+Empty board
+Duck board
+8xn
+[backrow]
 
 Keyboard Shortcuts
 ------------------
@@ -18,10 +37,13 @@ up arrow: undo all moves
 left arrow: undo last move
 right arrow: redo last undone move
 down arrow: redo all undone moves
+space: play computer move
 x: flip board 180 degrees
 r: rotate board 90 degrees clockwise
 c or l: toggle board coordinates
+e: toggle eval bar
 h: open help
+p: open PGN and FEN window
 s: open settings
 f: toggle fullscreen
 f11: toggle fullscreen
@@ -34,4 +56,7 @@ whether the piece can be moved.
 The last move is highlighted.
 Sound when moving pieces.
 Board is resized when changing the size of the window.
-Sound and red flashes when illegal move due to check is played
+Move animations
+Sound and red flashes when illegal move due to check is played.
+PGN is automatically copied when opened.
+Evaluation bar changes position depending on rotation of the board.
