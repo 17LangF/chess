@@ -2,8 +2,10 @@
 
 import time
 import tkinter as tk
+from tkinter import filedialog
 import winsound
 
+import computer
 from board import Board, ChessError
 from piece import Piece
 
@@ -32,12 +34,16 @@ class TkBoard(tk.Frame):
         when showing the board.
     show_legal_moves : bool
         Whether to show legal moves.
+    eval_bar : bool
+        Whether to show evaluation bar.
     sound : bool
         Whether to play sounds.
     animation_speed : float
         Time in seconds per move.
     pixels : int
         Length of one square in pixels.
+    board_pos : tuple of (int, int)
+        Coordinates of the top-left corner of the board.
     colours_rgb : dict of {str: tuple of (int, int, int)}
         RGB colours of the squares and background.
     colours_hex : dict of {str: str}
@@ -83,11 +89,16 @@ class TkBoard(tk.Frame):
         self.coords = True
         self.rotation = 0
         self.show_legal_moves = True
+        self.eval_bar = True
         self.sound = True
-        self.animation_speed = 0.2
-        self.pixels = pixels = 78
+        self.animation_speed = 0.1
+        self.pixels = pixels = 65
+        self.board_pos = (65, 65)
 
         self.colours_rgb = {
+            'white': (255, 255, 255),
+            'black': (0, 0, 0),
+            'dark grey': (64, 61, 57),
             'light': (238, 238, 210),
             'dark': (118, 150, 86),
             'highlight': (255, 255, 0),
@@ -99,7 +110,7 @@ class TkBoard(tk.Frame):
             'blue': (82, 176, 220),
             'magenta': (176, 142, 166),
             'grey': (175, 166, 145),
-            'background': (81, 80, 76)
+            'background': (81, 80, 77)
         }
         self.colours_hex = {colour: rgb_to_hex(rgb)
                             for colour, rgb in self.colours_rgb.items()}
@@ -121,23 +132,31 @@ class TkBoard(tk.Frame):
             height=height, background=self.colours_hex['background'])
         self.canvas.pack(fill='both', expand=True)
 
-        # Game start sound
-        if self.sound:
-            winsound.PlaySound(
-            f'sounds/game-start.wav', winsound.SND_FILENAME |
-            winsound.SND_ASYNC | winsound.SND_NODEFAULT
-        )
-
-        # Key bindings
-        self.canvas.bind('<Motion>', self.motion)
-        self.canvas.bind('<Button-1>', self.left_click)
-        self.canvas.bind('<B1-Motion>', self.left_drag)
-        self.canvas.bind('<ButtonRelease-1>', self.left_release)
-        self.canvas.bind('<Button-3>', self.right_click)
-        self.canvas.bind('<ButtonRelease-3>', self.right_release)
-        self.canvas.bind('<KeyPress>', self.key_press)
-        self.canvas.bind('<Configure>', self.refresh)
+        self.bind()
         self.canvas.focus_set()
+        self.play_sound('game-start')
+        self.canvas.after(10, self.try_computer)
+
+    def bind(self, bind: bool = True):
+        """Bind or unbind events."""
+        binds = (
+            ('<Motion>', self.motion),
+            ('<Button-1>', self.left_click),
+            ('<B1-Motion>', self.left_drag),
+            ('<ButtonRelease-1>', self.left_release),
+            ('<Button-3>', self.right_click),
+            ('<ButtonRelease-3>', self.right_release),
+            ('<KeyPress>', self.key_press),
+            ('<Configure>', self.refresh)
+        )
+        if bind:
+            for event, method in binds:
+                self.canvas.bind(event, method)
+        else:
+            for event, _ in binds:
+                if event == '<Configure>':
+                    continue
+                self.canvas.unbind(event)
 
     def refresh(self, event: tk.Event = None):
         """Redraw board."""
@@ -154,10 +173,12 @@ class TkBoard(tk.Frame):
                     if letter not in names:
                         names[letter] = f'{colour} {Piece(letter).name}'
 
-            xsize = event.width // size[self.rotation % 2]
-            ysize = event.height // size[(self.rotation + 1) % 2]
+            xsize = event.width - 2*self.board_pos[0]
+            xsize = xsize // size[self.rotation % 2]
+            ysize = event.height - 2*self.board_pos[1]
+            ysize = ysize // size[(self.rotation + 1) % 2]
             self.pixels = pixels = max(1, min(xsize, ysize))
-            resize = [(zoom, -(-180 * zoom // pixels)) for zoom in range(1, 5)]
+            resize = [(zoom, -(-180 * zoom // pixels)) for zoom in range(1, 6)]
             zoom, subsample = max(resize, key=lambda i: 180 * i[0] // i[1])
             self.images = {letter: tk.PhotoImage(file=f'images/{name}.png')
                            .zoom(zoom).subsample(subsample)
@@ -222,6 +243,9 @@ class TkBoard(tk.Frame):
         if self.promotion:
             self.promotion_selection(self.promotion)
 
+        # Eval bar
+        self.after(0, self.update_eval_bar)
+
     def colour_square(self, x: int, y: int, colour: tuple, opacity: float):
         """
         Colour square.
@@ -229,7 +253,7 @@ class TkBoard(tk.Frame):
         Parameters
         ----------
         x, y : int
-            Coordinate of square.
+            Coordinates of square.
         colour : tuple of (int, int, int)
             RGB colour. If square is already coloured in the same
             colour, colour is removed.
@@ -299,8 +323,8 @@ class TkBoard(tk.Frame):
     def update_coords(self):
         """Update board coordinates."""
         # Remove coordinates
+        self.canvas.delete('coords')
         if not self.coords:
-            self.canvas.delete('coords')
             return
 
         # Add coordinates
@@ -327,17 +351,17 @@ class TkBoard(tk.Frame):
             column_colour = sum(size) + 1
             row_colour = size[0]
 
-        font = ('Segoe UI', int(0.17 * pixels), 'bold')
-        x = 0.12 * pixels
+        font = ('Segoe UI', max(1, int(0.17 * pixels)), 'bold')
+        x = 0.12 * pixels + self.board_pos[0]
         for i, char in enumerate(column):
-            y = (i + 0.17) * pixels
+            y = (i + 0.17) * pixels + self.board_pos[1]
             colour = 'dark' if (i + column_colour) % 2 else 'light'
             colour = self.colours_hex[colour]
             self.canvas.create_text(x, y, text=char, fill=colour,
                                     font=font, tags='coords')
-        y = (size[(self.rotation + 1) % 2] - 0.17) * pixels
+        y = (size[(self.rotation + 1) % 2] - 0.17) * pixels + self.board_pos[1]
         for i, char in enumerate(row):
-            x = (i + 0.85) * pixels
+            x = (i + 0.85) * pixels + self.board_pos[0]
             colour = 'dark' if (i + row_colour) % 2 else 'light'
             colour = self.colours_hex[colour]
             self.canvas.create_text(x, y, text=char, fill=colour,
@@ -379,7 +403,9 @@ class TkBoard(tk.Frame):
         self.canvas.create_rectangle(
             *self.coords_to_pos(x-0.5, y-dy*0.5),
             *self.coords_to_pos(x+0.5, y+dy*(len(promotion)-0.5)),
-            outline='#7F7F7F', fill='#ffffff', tags='promotion'
+            outline=self.colours_hex['dark grey'],
+            fill=self.colours_hex['white'],
+            tags='promotion'
         )
 
         for i, piece in enumerate(promotion):
@@ -389,6 +415,70 @@ class TkBoard(tk.Frame):
             self.canvas.create_image(*self.coords_to_pos(x, y+dy*i),
                 image=self.images[promote], tags='promotion')
         self.promotion = promotion
+
+    def update_eval_bar(self):
+        """Update evaluation bar."""
+        # Remove eval bar
+        self.canvas.delete('evalbar')
+        if not self.eval_bar:
+            return
+
+        # Calculate eval bar coordinates
+        computer.stockfish(self.board)
+        evaluation = self.board.evaluation
+
+        if isinstance(evaluation, int) or abs(evaluation) == float('inf'):
+            probability = 0 if evaluation < 0 else 1
+        else:
+            probability = 0.09 * evaluation + 0.5
+            probability = min(max(0.05, probability), 0.95)
+
+        x = [-30, -10, -30, -10, -20]
+        height = self.pixels * self.size[1]
+        y = [0, (1-probability) * height, (1-probability) * height, height]
+
+        # Evaluation text
+        if evaluation < 0:
+            y.append(12)
+            colour = self.colours_hex['white']
+            font = ('Segoe UI', 7, 'bold')
+        else:
+            y.append(height - 12)
+            colour = self.colours_hex['dark grey']
+            font = ('Segoe UI', 7)
+
+
+        if self.rotation in {1, 2}:
+            y = [height - i for i in y]
+        if self.rotation in {1, 3}:
+            x, y = y, x
+        x = [self.board_pos[0] + i for i in x]
+        y = [self.board_pos[1] + i for i in y]
+
+        # Add eval bar
+        if probability != 1:
+            self.canvas.create_rectangle(
+                x[0], y[0], x[1], y[1], width=0,
+                fill=self.colours_hex['dark grey'], tags='evalbar'
+            )
+        if probability != 0:
+            self.canvas.create_rectangle(
+                x[2], y[2], x[3], y[3], width=0,
+                fill=self.colours_hex['white'], tags='evalbar'
+            )
+
+        # Add evaluation text
+        evaluation = abs(evaluation)
+        if evaluation == float('inf'):
+            text = '1-0' if probability else '0-1'
+        elif probability in {0, 1}:
+            text = f"M{evaluation}"
+        elif evaluation < 10:
+            text = f"{evaluation:.1f}"
+        else:
+            text = f"{evaluation:.0f}"
+        self.canvas.create_text(x[4], y[4], text=text,
+                                fill=colour, font=font, tags='evalbar')
 
     def motion(self, event: tk.Event):
         """Update cursor graphic."""
@@ -449,6 +539,7 @@ class TkBoard(tk.Frame):
                 self.play_sound('promote')
 
             self.deselect_piece()
+            self.try_computer()
             return
 
         # Click off the board
@@ -497,9 +588,10 @@ class TkBoard(tk.Frame):
         if not self.selected or self.promotion:
             return
         piece = self.canvas.find_withtag((*self.selected[:2], '&&piece'))
-        xpos = min(max(0, event.x), self.size[self.rotation % 2] * self.pixels)
-        ypos = min(max(0, event.y),
-                   self.size[(self.rotation + 1) % 2] * self.pixels)
+        xpos = min(max(event.x, self.board_pos[0]),
+            self.size[self.rotation % 2] * self.pixels + self.board_pos[1])
+        ypos = min(max(event.y, self.board_pos[1]),
+            self.size[(self.rotation+1) % 2] * self.pixels + self.board_pos[1])
         self.canvas.coords(piece, xpos, ypos)
 
     def left_release(self, event: tk.Event):
@@ -620,6 +712,11 @@ class TkBoard(tk.Frame):
             if self.mode == 'setup':
                 return
             self.redo(True)
+        elif key == 'space':
+            # Play computer move
+            if self.mode == 'setup':
+                return
+            self.computer()
         elif key == 'x':
             # Flip how board is shown
             self.rotation ^= 2
@@ -635,12 +732,25 @@ class TkBoard(tk.Frame):
             self.canvas.tag_raise('movehint')
             self.canvas.tag_raise('piece')
             self.canvas.tag_raise('promotion')
+        elif key == 'e':
+            # Toggle eval bar
+            self.eval_bar = not self.eval_bar
+            self.after(0, self.update_eval_bar)
         elif key == 'h':
             # Open help
             help_window = tk.Toplevel()
-            help_window.title('Help')
-            icon = tk.PhotoImage(file='images/help.png')
+            help_window.title("Help")
+            icon = tk.PhotoImage(file='images/help icon.png')
             help_window.iconphoto(False, icon)
+            text = tk.Text(help_window)
+            with open('manual.txt') as file:
+                manual = file.read()
+            text.insert(tk.END, manual)
+            text.configure(state='disabled')
+            text.grid(padx=8, pady=8)
+        elif key == 'p':
+            # Open PGN and FEN window
+            self.pgn()
         elif key == 's':
             # Open settings
             self.settings()
@@ -712,6 +822,7 @@ class TkBoard(tk.Frame):
             # Move piece
             self.board.move(move)
             self.play_move(move, not event.state & 256)
+            self.try_computer()
 
         # Move piece in setup mode
         else:
@@ -722,6 +833,76 @@ class TkBoard(tk.Frame):
             self.canvas.delete((x, y, '&&piece'))
             self.canvas.itemconfig(piece, tags=((x, y), 'piece'))
             self.deselect_piece()
+
+    def play_move(self, move, animate: bool = True):
+        """Play move on screen."""
+        # Deselect piece
+        if self.selected:
+            coords = self.selected[:2]
+            piece = self.canvas.find_withtag((*coords, '&&piece'))
+            self.canvas.coords(piece, *self.coords_to_pos(*coords))
+            self.deselect_piece()
+
+        x = move.x
+        y = move.y
+        nx = move.nx
+        ny = move.ny
+        piece = self.canvas.find_withtag((x, y, '&&piece'))
+        self.canvas.tag_raise(piece)
+        sound = 'move-self'
+
+        # Highlight move and clear arrows
+        for coords, (colour, opacity) in list(self.highlights.items()):
+            self.colour_square(*coords, colour, opacity)
+        self.colour_square(x, y, self.colours_rgb['highlight'], 0.5)
+        self.colour_square(nx,ny, self.colours_rgb['highlight'], 0.5)
+        self.canvas.delete('arrow')
+        self.arrows = {}
+
+        # Castle
+        if '-' in move.name:
+            rook = self.canvas.find_withtag((*move.info, '&&piece'))
+            nrx = nx + (move.name.count('0') == 3) * 2 - 1
+            self.canvas.itemconfig(rook, tags=((nrx, ny), 'piece'))
+            sound = 'castle'
+        # En passant
+        elif move.info:
+            self.canvas.delete((*move.info, '&&piece'))
+        # Promotion
+        if '=' in move.name:
+            promote = move.name[move.name.index('=') + 1]
+            if self.board.board[ny][nx].colour == 'b':
+                promote = promote.lower()
+            self.canvas.itemconfig(piece, image=self.images[promote])
+            sound = 'promote'
+        # Capture
+        elif move.capture:
+            sound = 'capture'
+        # Check
+        if move.name[-1] in {'+', '#'}:
+            sound = 'check'
+
+        self.play_sound(sound)
+
+        # End game
+        if move.type:
+            self.after(200, self.play_sound, 'game-end')
+
+        self.canvas.delete((nx, ny, '&&piece'))
+        self.canvas.itemconfig(piece, tags=((nx, ny), 'piece'))
+
+        # Update evaluation bar
+        self.after(0, self.update_eval_bar)
+
+        # Animate move
+        if animate:
+            self.animate(piece, x, y, nx, ny)
+            if '-' in move.name:
+                self.animate(rook, *move.info, nrx, move.info[1])
+        else:
+            self.canvas.coords(piece, *self.coords_to_pos(nx, ny))
+            if '-' in move.name:
+                self.canvas.coords(rook, *self.coords_to_pos(nrx, ny))
 
     def undo(self, all: bool = False):
         """Undo last move or all moves."""
@@ -744,7 +925,7 @@ class TkBoard(tk.Frame):
             self.refresh()
             return
 
-        # Undo one
+        # Undo last
         move = self.board.undo()
         if not move:
             return
@@ -754,6 +935,7 @@ class TkBoard(tk.Frame):
         ny = move.ny
         info = move.info
         piece = self.canvas.find_withtag((nx, ny, '&&piece'))
+        self.canvas.tag_raise(piece)
         sound = 'move-self'
 
         # Highlight last move
@@ -792,24 +974,15 @@ class TkBoard(tk.Frame):
 
         self.play_sound(sound)
 
+        # Update evaluation bar
+        self.after(0, self.update_eval_bar)
+
         # Animate move
         self.canvas.itemconfig(piece, tags=((x, y), 'piece'))
         self.animate(piece, nx, ny, x, y)
 
     def redo(self, redo_all: bool = False):
         """Redo last undone move or all undone moves."""
-        # Deselect piece
-        if self.selected:
-            coords = self.selected[:2]
-            piece = self.canvas.find_withtag((*coords, '&&piece'))
-            self.canvas.coords(piece, *self.coords_to_pos(*coords))
-            self.deselect_piece()
-        # Clear highlights and arrows
-        for coords, (colour, opacity) in list(self.highlights.items()):
-            self.colour_square(*coords, colour, opacity)
-        self.canvas.delete('arrow')
-        self.arrows = {}
-
         # Redo all
         if redo_all:
             while self.board.undone_moves:
@@ -823,68 +996,63 @@ class TkBoard(tk.Frame):
             return
         self.play_move(move)
 
-    def play_move(self, move, animate: bool = True):
-        """Play move on screen."""
-        x = move.x
-        y = move.y
-        nx = move.nx
-        ny = move.ny
-        piece = self.canvas.find_withtag((x, y, '&&piece'))
-        sound = 'move-self'
+    def try_computer(self):
+        """Play computer move if it is a computer's turn."""
+        if self.mode == 'setup':
+            return
 
-        # Highlight move
-        for coords, (colour, opacity) in list(self.highlights.items()):
-            self.colour_square(*coords, colour, opacity)
-        self.colour_square(x, y, self.colours_rgb['highlight'], 0.5)
-        self.colour_square(nx,ny, self.colours_rgb['highlight'], 0.5)
+        colour = 'White' if self.board.active == 'w' else 'Black'
+        player, *args = self.board.tag_pairs[colour].split()
+        kwargs = {}
 
-        # Castle
-        if '-' in move.name:
-            rook = self.canvas.find_withtag((*move.info, '&&piece'))
-            nrx = nx + (move.name.count('0') == 3) * 2 - 1
-            self.canvas.itemconfig(rook, tags=((nrx, ny), 'piece'))
-            sound = 'castle'
-        # En passant
-        elif move.info:
-            self.canvas.delete((*move.info, '&&piece'))
-        # Promotion
-        if '=' in move.name:
-            promote = move.name[move.name.index('=') + 1]
-            if self.board.board[ny][nx].colour == 'b':
-                promote = promote.lower()
-            self.canvas.itemconfig(piece, image=self.images[promote])
-            sound = 'promote'
-        # Capture
-        elif move.capture:
-            sound = 'capture'
-        # Check
-        if move.name[-1] in {'+', '#'}:
-            sound = 'check'
-
-        self.play_sound(sound)
-
-        # End game
-        if move.type.endswith('mate'):
-            self.canvas.after(200, self.play_sound, 'game-end')
-
-        self.canvas.delete((nx, ny, '&&piece'))
-        self.canvas.itemconfig(piece, tags=((nx, ny), 'piece'))
-        self.deselect_piece()
-
-        # Animate move
-        if animate:
-            self.animate(piece, x, y, nx, ny)
-            if '-' in move.name:
-                self.animate(rook, *move.info, nrx, move.info[1])
+        if player == 'Stockfish':
+            engine = computer.stockfish
+            time = 0
+            try:
+                if args[-1].endswith('ms'):
+                    time = int(args[-1][:-2])
+                elif args[-1].endswith('s'):
+                    time = int(args[-1][:-1]) * 1000
+                if time <= 0:
+                    raise ValueError
+            except (IndexError, ValueError):
+                pass
+            else:
+                kwargs['time'] = time
+            try:
+                kwargs['elo'] = int(self.board.tag_pairs[f'{colour}Elo'])
+            except (KeyError, ValueError):
+                pass
+        elif player == 'Random':
+            engine = computer.random_move
+        elif player == 'Firstmove':
+            engine = computer.first_move
         else:
-            self.canvas.coords(piece, *self.coords_to_pos(nx, ny))
-            if '-' in move.name:
-                self.canvas.coords(rook, *self.coords_to_pos(nrx, ny))
+            return
+
+        delay = int(self.animation_speed * 1000)
+        self.bind(False)
+        self.canvas.update()
+        self.after(delay, self.computer, engine, kwargs)
+
+    def computer(self, engine=computer.stockfish, kwargs=None):
+        """Play computer move."""
+        self.bind()
+        if not kwargs:
+            kwargs = {}
+        move = engine(self.board, **kwargs)
+        if not move:
+            return
+        self.board.move(move)
+        self.play_move(move)
+        self.try_computer()
 
     def play_sound(self, sound: str):
         """Play sound using winsound."""
         if not self.sound:
             return
+
+        winsound.PlaySound(None, winsound.SND_PURGE)
         winsound.PlaySound(
             f'sounds/{sound}.wav',
             winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT
@@ -893,12 +1061,11 @@ class TkBoard(tk.Frame):
     def animate(self, piece, sx: int, sy: int, x: int, y: int):
         """Animate the movement of a piece from (sx, sy) to (x, y)."""
         def next_frame(start_time, piece, sx, sy, dx, dy, speed):
-            proportion = (time.time() - start_time) / speed
+            proportion = (time.time() - start_time + 0.02) / speed
             if proportion < 1:
                 self.canvas.coords(piece, sx+proportion*dx, sy+proportion*dy)
-                self.canvas.after(10, next_frame, start_time, piece,
-                                  sx, sy, dx, dy, speed)
-
+                self.after(10, next_frame, start_time, piece,
+                           sx, sy, dx, dy, speed)
             else:
                 self.canvas.coords(piece, sx + dx, sy + dy)
 
@@ -919,7 +1086,7 @@ class TkBoard(tk.Frame):
             self.colour_square(x, y, self.colours_rgb['red'], 0.8)
 
             if count:
-                self.canvas.after(250, toggle, x, y, count-1)
+                self.after(250, toggle, x, y, count-1)
             else:
                 highlight = self.highlights.get((x, y))
                 if highlight:
@@ -940,20 +1107,64 @@ class TkBoard(tk.Frame):
         self.play_sound('illegal')
         toggle(x, y, 5)
 
+    def pgn(self):
+        """Open PGN and FEN window, copy and allow download of PGN."""
+        window = tk.Toplevel()
+        window.title("")
+        icon = tk.PhotoImage(file='images/pgn icon.png')
+        window.iconphoto(False, icon)
+
+        # FEN
+        fen_label = tk.Label(window, text="FEN")
+        fen_label.grid(sticky='w', padx=8)
+        fen_text = tk.Text(window, height=1, relief='groove', borderwidth=2)
+        fen_text.insert(tk.END, self.board.get_fen())
+        fen_text.configure(state='disabled')
+        fen_text.grid(sticky='ew', padx=8)
+
+        # PGN
+        pgn_label = tk.Label(window, text="PGN")
+        pgn_label.grid(sticky='w', padx=8)
+        pgn_text = tk.Text(window, relief='groove', borderwidth=2)
+        pgn = self.board.get_pgn()
+        pgn_text.insert(tk.END, pgn)
+        pgn_text.configure(state='disabled', wrap='word')
+        pgn_text.grid(sticky='news', padx=8)
+        window.columnconfigure(0, weight=1)
+        window.rowconfigure(3, weight=1)
+
+        # Download button
+        def download():
+            filedialog.asksaveasfile()
+        button = tk.Button(window, text="Save", command=download)
+        button.grid()
+
+        # Copy PGN to clipboard
+        clipboard = tk.Tk()
+        clipboard.withdraw()
+        clipboard.clipboard_clear()
+        clipboard.clipboard_append(pgn)
+        clipboard.update()
+        clipboard.destroy()
+
+        window.mainloop()
+
     def settings(self):
         """Open settings."""
         settings = tk.Toplevel()
-        settings.title('Settings')
+        settings.title("Settings")
         icon = tk.PhotoImage(file='images/settings icon.png')
         settings.iconphoto(False, icon)
-        label = tk.Label(settings, text='hello')
+        label = tk.Label(settings, text="Settings")
         label.pack(side='top', pady=10)
-        button = tk.Button(settings, text='Done', command=settings.destroy)
+        button = tk.Button(settings, text="Save", command=settings.destroy)
         button.pack()
         settings.mainloop()
 
     def pos_to_coords(self, x: float, y: float) -> tuple:
         """Convert mouse position to board coordinates."""
+        x -= self.board_pos[0]
+        y -= self.board_pos[1]
         x //= self.pixels
         y //= self.pixels
         if self.rotation == 1:
@@ -970,12 +1181,14 @@ class TkBoard(tk.Frame):
         x = (x + 0.5) * pixels
         y = (y + 0.5) * pixels
         if self.rotation == 1:
-            return self.size[1] * pixels - y, x
+            x, y = self.size[1] * pixels - y, x
         if self.rotation == 2:
-            return self.size[0] * pixels - x, self.size[1] * pixels - y
+            x = self.size[0] * pixels - x
+            y = self.size[1] * pixels - y
         if self.rotation == 3:
-            return y, self.size[0] * pixels - x
-        return x, y
+            x, y = y, self.size[0] * pixels - x
+
+        return x + self.board_pos[0], y + self.board_pos[1]
 
     def is_last_move(self, x: int, y: int) -> bool:
         """
@@ -1048,8 +1261,9 @@ class TkBoard(tk.Frame):
             nodes = self.board.perft(depth)
             end = time.perf_counter()
             run_time = end-start
-            nodes_per_second = nodes/run_time
-            print(f'{depth=} {nodes=} {run_time=} {nodes_per_second=}')
+            print(f"depth: {depth} nodes: {nodes} time: {run_time} "
+                  f"nodes/time: {nodes/run_time}")
+
 
 def rgb_to_hex(rgb: tuple) -> str:
     """Convert RGB colour to HEX."""
@@ -1072,22 +1286,24 @@ def command_line_interface(tkboard: TkBoard):
 
 def main():
     """Graphical user interface version."""
-    board = Board()
     window = tk.Tk()
-    window.title('Chess')
-    icon = tk.PhotoImage(file='images/icon.png')
-    window.iconphoto(False, icon)
+    window.title("Chess")
+    window.iconphoto(False, tk.PhotoImage(file='images/chess icon.png'))
 
+    board = Board()
+    # board.load_fen('')
     tkboard = TkBoard(window, board)
-    tkboard.grid(column=0, row=0, sticky='NEWS', padx=16, pady=16)
+    tkboard.grid(column=0, row=0, sticky='news', padx=0, pady=0)
     window.configure(background=tkboard.colours_hex['background'])
 
-    button = tk.Button(window, text='Computer', command=tkboard.refresh)
-    button.grid(row=0, column=1, sticky='SE')
+    # button = tk.Button(window, text="Evaluation",
+    #                    command=lambda: computer.evaluate(board))
+    # button.grid(row=0, column=1, sticky='se')
     window.columnconfigure(0, weight=1)
     window.rowconfigure(0, weight=1)
-    window.geometry('1126x656+120+40')
-    window.after(0, command_line_interface, tkboard)
+    geometries = '650x650+125+41', '850x850+125+0', '963x963+246+41'
+    window.geometry(geometries[1])
+    # tkboard.after(100, tkboard.perft, 5)
     tk.mainloop()
 
 

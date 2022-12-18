@@ -32,18 +32,19 @@ class Move:
     capture : Piece or None
         Piece which is captured if move is a capture else None.
     info : tuple of (int, int) or None
-        If move is castle, this is the coordinate of the starting square
-        of the rook. If move is en passant, this is the coordinate of
-        the square of the pawn which is captured. Else None.
-    type : {'normal', 'check', 'checkmate', 'stalemate'}
-        Whether the move results in check, checkmate, stalemate. If none
-        of the previous apply, the move is considered to be 'normal'.
+        If move is castle, these are the coordinates of the starting
+        square of the rook. If move is en passant, these are the
+        coordinates of the square of the pawn which is captured. Else
+        None.
+    type : {'', 'checkmate', 'stalemate', 'fifty-move rule'}
+        Whether the move results in checkmate, stalemate, or fifty-move
+        rule. If move does not end game, this is an empty string.
     distance : float
         Distance the piece moving travels, calculated using the
         Pythagorean theorem.
     """
     def __init__(self, name: str, x: int, y: int, nx: int, ny: int, board,
-                 capture=None, info: tuple = None, type: str = 'normal'):
+                 capture=None, info: tuple = None, type: str = ''):
         """
         Initiate move attributes.
 
@@ -60,14 +61,14 @@ class Move:
         capture : Piece, default=None
             Piece which is captured if move is a capture else None.
         info : tuple of (int, int), default=None
-            If move is castle, this is the coordinate of the starting
-            square of the rook. If move is en passant, this is the
-            coordinate of the square of the pawn which is captured. Else
-            None.
-        type : {'normal', 'check', 'checkmate', 'stalemate'}
-            Whether the move results in check, checkmate, stalemate. If
-            none of the previous apply, the move is considered to be
-            'normal'.
+            If move is castle, these are the coordinates of the starting
+            square of the rook. If move is en passant, these are the
+            coordinates of the square of the pawn which is captured.
+            Else None.
+        type : {'normal', 'checkmate', 'stalemate', 'fifty-move rule'}
+            Whether the move results in checkmate, stalemate, or
+            fifty-move rule. If none of the previous apply, the move is
+            considered to be 'normal'.
         """
         self.name = name
         self.x = x

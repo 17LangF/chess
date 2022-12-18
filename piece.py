@@ -59,8 +59,11 @@ pieces = {
           ((0, 2, 1), (2, 2, 1))),
     'Z': ('alibaba-rider', 7,  # repeated alibaba
           ((0, 2, float('inf')), (2, 2, float('inf')))),
-    '\u0394': ('dragon-bishop', 7,  # bishop + xiangqi horse (capital delta)
+    '\u039B': ('dragon bishop', 7,  # bishop + xiangqi horse (lambda, chess.com
+                                    # uses delta)
                ((1, 1, float('inf')), (1, 2, 1))),  # but cannot jump as knight
+    '\u0398': ('duck', 0,  # brick (theta)
+               ()),  # but can be moved to any empty square after each turn
 
     # Fairy pawns
 
@@ -69,14 +72,15 @@ pieces = {
     # They only differ in the directions (forward or diagonally forward)
     # they can move and capture.
 
-    '\u03B1': ('berolina', 1,  # reverse pawn (alpha)
-               ((1, 1, 0.4), (0, 1, 0.1))),
-    '\u03B2': ('soldier', 1,  # forwards pawn (beta)
-               ((0, 1, 0.5),)),
-    '\u03B3': ('stone general', 1,  # diagonal pawn (gamma)
-               ((1, 1, 0.5),)),
-    '\u03B4': ('sergeant', 1,  # super pawn (delta)
-               ((0, 1, 0.5), (1, 1, 0.5))),
+    '\u0391': ('berolina', 1,  # reverse pawn (alpha)
+               ((1, 1, 0.4), (0, 1, 0.1))),  # move diagonal, capture forward
+    '\u0392': ('soldier', 1,  # forwards pawn (beta)
+               ((0, 1, 0.5),)),  # move and capture forward
+    '\u0393': ('stone general', 1,  # diagonal pawn (gamma)
+               ((1, 1, 0.5),)),  # move and capture diagonally
+    '\u0394': ('sergeant', 1,  # super pawn (delta)
+               ((0, 1, 0.5), (1, 1, 0.5))),  # move and capture forward or
+                                             # diagonally
 
     # Other
     ' ': ('empty', 0, ()),
@@ -128,7 +132,10 @@ class Piece:
         """
         self.letter = letter
 
-        if letter in 'Xx':
+        if letter in {'X', 'x'}:
+            self.colour = ''
+        elif letter in {'\u0398', '\u03B8'}:
+            letter = '\u0398'
             self.colour = ''
         elif letter.isupper():
             self.colour = 'w'
