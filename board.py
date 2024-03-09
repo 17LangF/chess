@@ -43,16 +43,16 @@ class Board:
         Moves played on the board.
     undone_moves : list of Move
         Moves that have been undone in order. Used to redo moves.
-    promotion : str
-        Letters of every piece a pawn can promote to.
     legal_moves : list of Move
         All legal moves of the current position.
     illegal_moves : list of Move
         All illegal moves of the current position due to king in check.
+    promotion : str
+        Letters of every piece a pawn can promote to.
     evaluation : float
         Computer evaluation of the position. Infinity for checkmate.
         Integer type means moves until mate. Positive for white
-        advantage, negative for black advantage, 0.0 for draw.
+        advantage, negative for black advantage, 0 for draw.
 
     Raises
     ------
@@ -68,33 +68,9 @@ class Board:
         variant : str, default='Standard'
             Chess variant to set up board.
         """
-        self.variant = variant
-        self.active = 'w'
-        self.castling = 'KQkq'
-        self.en_passant = '-'
-        self.halfmove = 0
-        self.fullmove = 1
-        self.tag_pairs = {
-            'Event': '?',
-            'Site': 'Python Chess',
-            'Date': datetime.today().strftime('%Y.%m.%d'),
-            'Round': '?',
-            'White': '?',
-            'Black': 'Stockfish',
-            'Result': '*',
+        self.reset()
 
-            'Time': datetime.today().strftime('%H:%M:%S'),
-            'TimeControl': '-',
-            'WhiteElo': '?',
-            'BlackElo': '?'
-        }
-        self.moves = []
-        self.undone_moves = []
-        self.illegal_moves = []
-        self.promotion = 'QNRB'
-        self.evaluation = 0.0
-
-        # Board covered in ducks
+        # Board covered in ducks (used primarily for testing)
         if variant.startswith('Duckboard'):
             try:
                 size = variant[10:].split('x')
@@ -102,6 +78,7 @@ class Board:
                 if x <= 0 or y <= 0:
                     raise ValueError
             except ValueError:
+                variant = 'Duckboard'
                 self.size = size = 8, 8
             self.board = [[Piece('\u0398')] * size[0] for _ in range(size[1])]
 
@@ -113,13 +90,12 @@ class Board:
                     raise ValueError
             except ValueError:
                 y = 8
-                self.variant = variant = 'Standard'
-            else:
-                self.tag_pairs['Variant'] = variant
+                variant = 'Standard'
             self.size = size = 8, y
             self.board = [[Piece()] * size[0] for _ in range(size[1])]
 
-        elif variant[0] == '[' and variant[-1] == ']' and len(variant) > 2:
+        # [backrank pieces]
+        elif len(variant) > 2 and variant[0] == '[' and variant[-1] == ']':
             pieces = variant[1:-1]
             self.size = size = len(pieces), 8
             self.board = [[Piece()] * size[0] for _ in range(size[1])]
@@ -128,15 +104,11 @@ class Board:
             self.board[-2] = [Piece('P') for _ in range(size[0])]
             self.board[-1] = [Piece(piece) for piece in pieces.upper()]
 
-        else:
-            self.size = size = 8, 8
-            self.board = [[Piece()] * size[0] for _ in range(size[1])]
-
         # Chess960
         if variant in {'Chess960', '960', 'Fisherandom', 'Fisher random',
-                         'Chess9LX'}:
+                       'Chess9LX'}:
             pieces = [None] * 8
-            # Place opposite-coloured bishops
+            # Place opposite-coloured bishops randomly
             pieces[random.randrange(0, 8, 2)] = 'B'
             pieces[random.randrange(1, 8, 2)] = 'B'
             # Place queen and two knights randomly
@@ -144,29 +116,61 @@ class Board:
             sample = random.sample(empty, 3)
             for i, piece in zip(sample, ('Q', 'N', 'N')):
                 pieces[i] = piece
-            # Place king between two rooks
+            # Place king between two rooks randomly
             empty = sorted(set(empty) - set(sample))
             for i, piece in zip(empty, ('R', 'K', 'R')):
                 pieces[i] = piece
 
             self.board[0] = [Piece(piece.lower()) for piece in pieces]
-            self.board[1] = [Piece('p') for _ in range(size[0])]
-            self.board[-2] = [Piece('P') for _ in range(size[0])]
-            self.board[-1] = [Piece(piece.upper()) for piece in pieces]
+            self.board[1] = [Piece('p') for _ in range(8)]
+            self.board[-2] = [Piece('P') for _ in range(8)]
+            self.board[-1] = [Piece(piece) for piece in pieces]
 
-            self.tag_pairs['Variant'] = 'Chess960'
+        # Standard
+        elif variant == 'Standard' or variant.startswith('8x'):
+            self.board[0] = [Piece(piece) for piece in 'rnbqkbnr']
+            self.board[1] = [Piece('p') for _ in range(8)]
+            self.board[-2] = [Piece('P') for _ in range(8)]
+            self.board[-1] = [Piece(piece) for piece in 'RNBQKBNR']
+
+        self.variant = variant
+        if variant != 'Standard':
+            self.tag_pairs['Variant'] = variant
             self.tag_pairs['SetUp'] = '1'
             self.tag_pairs['FEN'] = self.get_fen()
 
-        # Standard
-        elif variant == 'Standard':
-            pieces = list('RNBQKBNR')
-            self.board[0] = [Piece(piece.lower()) for piece in pieces]
-            self.board[1] = [Piece('p') for _ in range(size[0])]
-            self.board[-2] = [Piece('P') for _ in range(size[0])]
-            self.board[-1] = [Piece(piece.upper()) for piece in pieces]
-
         self.legal_moves = self.get_moves()
+
+    def reset(self):
+        """Resets board to empty 8x8."""
+        self.variant = 'Empty'
+        self.size = size = 8, 8
+        self.board = [[Piece()] * size[0] for _ in range(size[1])]
+        self.active = 'w'
+        self.castling = 'KQkq'
+        self.en_passant = '-'
+        self.halfmove = 0
+        self.fullmove = 1
+        self.tag_pairs = {
+            'Event': '?',
+            'Site': 'Python Chess',
+            'Date': datetime.today().strftime('%Y.%m.%d'),
+            'Round': '?',
+            'White': '?',
+            'Black': '?',
+            'Result': '*',
+
+            'Time': datetime.today().strftime('%H:%M:%S'),
+            'WhiteElo': '?',
+            'BlackElo': '?',
+            'TimeControl': '-'
+        }
+        self.moves = []
+        self.undone_moves = []
+        self.legal_moves = []
+        self.illegal_moves = []
+        self.promotion = 'QNRB'
+        self.evaluation = 0.0
 
     def move(self, move, *, update_moves: bool = True):
         """
@@ -185,6 +189,7 @@ class Board:
             If move is illegal.
         """
         if isinstance(move, str):
+            # Validate whether the given string is a legal move
             if len(move) < 2:
                 raise ChessError
 
@@ -328,15 +333,34 @@ class Board:
             self.fullmove += 1
 
         if update_moves:
+            # Redo last move
             if self.undone_moves and move == self.undone_moves[-1]:
                 self.undone_moves.pop()
-            else:
-                self.undone_moves = []
+                self.legal_moves = self.get_moves()
+                return
 
+            self.undone_moves = []
+            self.tag_pairs['Result'] = '*'
+            self.tag_pairs.pop('Termination', None)
+            self.tag_pairs.pop('EndTime', None)
+
+            # Move terminates game
             if move.type == 'checkmate':
-                self.tag_pairs['Result'] = '1-0' if active == 'w' else '0-1'
-            elif move.type in {'stalemate', 'fifty-move rule'}:
+                if active == 'w':
+                    self.tag_pairs['Result'] = '1-0'
+                    self.tag_pairs['Termination'] = f'White won by {move.type}'
+                else:
+                    self.tag_pairs['Result'] = '0-1'
+                    self.tag_pairs['Termination'] = f'Black won by {move.type}'
+                time = datetime.today().strftime('%H:%M:%S')
+                self.tag_pairs['EndTime'] = time
+
+            elif move.type in {'stalemate', 'insufficient material',
+                            '50-move rule', 'repetition'}:
                 self.tag_pairs['Result'] = '1/2-1/2'
+                self.tag_pairs['Termination'] = f'Game drawn by {move.type}'
+                time = datetime.today().strftime('%H:%M:%S')
+                self.tag_pairs['EndTime'] = time
 
             self.legal_moves = self.get_moves()
 
@@ -359,10 +383,13 @@ class Board:
         list of Move
             Moves of the current position of the game.
         """
-        if self.tag_pairs['Result'] != '*' and depth == 3:
+        if (self.tag_pairs['Result'] != '*' and not self.undone_moves
+                and depth >= 2):
+            self.illegal_moves = []
             return []
 
         board = self.board
+        hash = self.get_hash()
         size = self.size
         moves = {}
 
@@ -389,10 +416,11 @@ class Board:
                             # Promotion
                             for end in self.promotion:
                                 move = f'{file}{rank}={end}'
-                                moves[move] = [Move(move, x, y, x, ny, self)]
+                                moves[move] = [Move(move, x, y, x, ny, self,
+                                                    hash)]
                         else:
                             move = f'{file}{rank}'
-                            moves[move] = [Move(move, x, y, x, ny, self)]
+                            moves[move] = [Move(move, x, y, x, ny, self, hash)]
 
                         # Move pawn two squares forwards
                         if dy * y < (0, 2, 3-size[1])[dy]:
@@ -404,11 +432,11 @@ class Board:
                                     for end in self.promotion:
                                         move = f'{file}{rank}={end}'
                                         moves[move] = [Move(move, x, y, x, ny,
-                                                            self)]
+                                                            self, hash)]
                                 else:
                                     move = f'{file}{rank}'
                                     moves[move] = [Move(move, x, y, x, ny,
-                                                        self)]
+                                                        self, hash)]
 
                     # Pawn captures and en passant
                     ny = y + dy
@@ -419,7 +447,7 @@ class Board:
                         capture = board[ny][nx]
                         if capture:
                             if (piece.colour == capture.colour or
-                                not capture.colour):
+                                    not capture.colour):
                                 continue
 
                         new_file = chr(97+nx)
@@ -438,10 +466,10 @@ class Board:
                             for end in self.promotion:
                                 move = f'{file}x{new_file}{rank}={end}'
                                 moves[move] = [Move(move, x, y, nx, ny, self,
-                                                    capture, info)]
+                                                    hash, capture, info)]
                         else:
                             move = f'{file}x{new_file}{rank}'
-                            moves[move] = [Move(move, x, y, nx, ny, self,
+                            moves[move] = [Move(move, x, y, nx, ny, self, hash,
                                                 capture, info)]
                     continue
 
@@ -494,14 +522,15 @@ class Board:
                             if side == k:
                                 nx = size[0]-2
                                 moves['0-0'] = [Move('0-0', x, y, nx, y, self,
-                                                     info=(rx, y))]
+                                                     hash, info=(rx, y))]
                             else:
                                 moves['0-0-0'] = [Move('0-0-0', x, y, 2, y,
-                                                       self, info=(rx, y))]
+                                    self, hash, info=(rx, y))]
 
                 # Moves of symmetrically moving pieces
                 for move_x, move_y, maximum in piece.movement:
                     maximum = min(max(size), maximum)
+                    # Rotate/reflect the movement vector in all 8 directions
                     for direction in range(8):
                         if direction % 2:
                             if move_x == move_y:
@@ -523,6 +552,7 @@ class Board:
                         nx = x
                         ny = y
                         for _ in range(maximum):
+                            # Break if move takes piece off the board
                             nx += dx
                             if not 0 <= nx < size[0]:
                                 break
@@ -530,11 +560,11 @@ class Board:
                             if not 0 <= ny < size[1]:
                                 break
 
+                            # Disallow capturing own piece
                             destination = board[ny][nx]
-
                             if piece.colour == destination.colour:
                                 break
-
+                            # Capturing opponent's piece
                             if destination:
                                 if not destination.colour:
                                     break
@@ -546,9 +576,9 @@ class Board:
 
                             file = chr(97+nx)
                             rank = size[1]-ny
-
                             move = f'{letter}{middle}{file}{rank}'
-                            move = Move(move, x, y, nx, ny, self, capture)
+                            move = Move(move, x, y, nx, ny, self, hash,
+                                        capture)
                             moves.setdefault(move.name, []).append(move)
                             if capture:
                                 break
@@ -602,11 +632,12 @@ class Board:
 
         moves = [move for detail in moves.values() for move in detail]
 
-        # Check for checkmate, stalemate, check, fifty-move rule
+        # Check for game termination and checks
         if depth >= 2:
             colour = self.active
             for move in moves:
                 self.move(move, update_moves=False)
+
                 if not self.get_moves(depth=0.5):
                     self.active = colour
                     if self.is_check(colour):
@@ -615,13 +646,52 @@ class Board:
                     else:
                         move.type = 'stalemate'
                 else:
+                    if depth == 3:
+                        hash = self.get_hash()
+
+                        # Draw by insufficient material
+                        if move.capture:
+                            position = hash[1]
+                            pieces = [i for i in position
+                                      if i not in {' ', 'K', 'k'}]
+                            # King vs king
+                            if not pieces:
+                                move.type = 'insufficient material'
+                            # King vs king + minor piece
+                            elif (len(pieces) == 1 and
+                                  pieces[0] in {'N', 'n', 'B', 'b'}):
+                                move.type = 'insufficient material'
+                            # Kings and bishops of the same colour
+                            elif set(pieces).issubset({'B', 'b'}):
+                                bishops = [0, 0]
+                                for y in range(size[1]):
+                                    for x in range(size[0]):
+                                        if board[y][x].letter in {'B', 'b'}:
+                                            bishops[(x + y) % 2] = 1
+                                if sum(bishops) == 1:
+                                    move.type = 'insufficient material'
+
+                        # Draw by fifty-move rule
+                        elif self.halfmove >= 100:
+                            move.type = '50-move rule'
+
+                        # Draw by repetition
+                        else:
+                            repetitions = 1
+                            for past_move in reversed(self.moves):
+                                if past_move.hash == hash:
+                                    repetitions += 1
+                                    if repetitions == 3:
+                                        move.type = 'repetition'
+                                        break
+
+                                if (not past_move.halfmove or
+                                        past_move.castling != self.castling):
+                                    break
+
                     self.active = colour
                     if self.is_check(colour):
                         move.name += '+'
-
-                    # Draw by fifty-move rule
-                    if self.halfmove >= 100 and depth == 3:
-                        move.type = 'fifty-move rule'
 
                 self.undo(update_moves=False)
 
@@ -645,8 +715,8 @@ class Board:
         """
         if isinstance(coord, str):
             k = 'k' if coord == 'w' else 'K'
-            for y in range (0, self.size[1]):
-                for x in range(0, self.size[0]):
+            for y in range(self.size[1]):
+                for x in range(self.size[0]):
                     if self.board[y][x].letter == k:
                         coord = (x, y)
                         break
@@ -704,6 +774,7 @@ class Board:
                 board[y][x].moves = moves
                 board[y][x].distance = distance
 
+        # Update board attributes
         self.active = move.active
         self.castling = move.castling
         self.en_passant = move.en_passant
@@ -711,22 +782,22 @@ class Board:
         self.fullmove = move.fullmove
 
         if update_moves:
-            self.tag_pairs['Result'] = '*'
             self.undone_moves.append(move)
             self.legal_moves = self.get_moves()
 
         return move
 
-    def redo(self):
+    def redo(self, *, update_moves: bool = True):
         """Redo last undone move."""
         if not self.undone_moves:
             return
         move = self.undone_moves[-1]
-        self.move(move)
+        self.move(move, update_moves=update_moves)
         return move
 
     def perft(self, depth: int = 1) -> int:
         """Return number of move paths of certain depth."""
+        # Base cases
         if not depth:
             return 1
         if depth == 1:
@@ -735,15 +806,26 @@ class Board:
         nodes = 0
         for move in self.get_moves(depth=2):
             self.move(move, update_moves=False)
-            nodes += self.perft(depth-1)
+            nodes += self.perft(depth-1)  # Recursive call
             self.undo(update_moves=False)
+
         return nodes
 
-    def get_hash(self) -> str:
+    def get_hash(self) -> tuple:
         """Return hash of position."""
         hash = ''.join(''.join(piece.letter for piece in rank)
                        for rank in self.board)
-        return hash + self.castling + self.en_passant
+        en_passant = self.en_passant
+        if en_passant != '-':
+            x = ord(en_passant[0]) - 97
+            y = self.size[1] - int(en_passant[1])
+            y += 1 if self.active == 'w' else -1
+            pawn = 'P' if self.active == 'w' else 'p'
+            if not (x > 0 and self.board[y][x-1].letter == pawn or
+                    x < self.size[0]-1 and self.board[y][x+1].letter == pawn):
+                en_passant = '-'
+
+        return self.active, hash, self.castling, en_passant
 
     def get_fen(self) -> str:
         """Return FEN (Forsyth-Edwards Notation) of board position."""
@@ -756,16 +838,33 @@ class Board:
 
     def get_pgn(self) -> str:
         """Return PGN (Portable Game Notation) of game."""
+        # Format tags
         tags = [f'[{tag} "{info}"]' for (tag, info) in self.tag_pairs.items()]
         tags = '\n'.join(tags)
         moves = self.moves + self.undone_moves[::-1]
+
+        # Set starting move from FEN if available
+        black_first = False
+        start_num = 1
+        if 'FEN' in self.tag_pairs:
+            fen = self.tag_pairs['FEN'].split()
+            if moves and fen[1] == 'b':
+                black_first = True
+                moves = ['..'] + moves
+            start_num = int(fen[5])
+
+        # Format moves
         moves = [moves[::2], moves[1::2]]
         if len(moves[0]) != len(moves[1]):
             moves[1].append('')
-        moves = [f'{i}. {w} {b}' for i, (w, b) in enumerate(zip(*moves), 1)]
+        moves = [f'{i}. {w} {b}'
+                 for i, (w, b) in enumerate(zip(*moves), start_num)]
         moves = ' '.join(moves).replace('0-0-0', 'O-O-O').replace('0-0', 'O-O')
         if moves and moves[-1] != ' ':
             moves += ' '
+        if black_first:
+            moves = moves.replace(' ', '', 1)
+
         return f'{tags}\n\n{moves}{self.tag_pairs["Result"]}'
 
     def load_fen(self, fen: str):
@@ -777,8 +876,10 @@ class Board:
         fen : str
             FEN to load.
         """
-        board, *info = fen.split(' ')
+        self.reset()
+        board, *info = fen.strip().split(' ')
 
+        # Replace numbers with empty squares
         numbers = ['']
         for letter in board:
             if letter.isdecimal():
@@ -791,11 +892,25 @@ class Board:
                 break
             board = board.replace(number, int(number) * ' ')
 
+        if not set(board).issubset('KQRBNPkqrbnp /'):
+            self.variant = 'Fairy'
+        elif not 1 == board.count('K') == board.count('k'):
+            self.variant = 'Bad number of kings'
+        else:
+            self.variant = 'Standard'
+
+        # Format piece placement data into array
         board = board.split('/')
-        self.size = size = [len(max(board, key=len)), len(board)]
+        size = len(max(board, key=len)), len(board)
+        if not size[0] * size[1]:
+            # Boards with 0 area are invalid
+            self.variant = 'Empty'
+            return
+        self.size = size
         board = [row.ljust(size[0]) for row in board]
         self.board = [[Piece(letter) for letter in row] for row in board]
 
+        # Parse other information in FEN
         info = (info + 5*[' '])[:5]
         active, castling, en_passant, halfmove, fullmove = info
         self.active = 'b' if active == 'b' else 'w'
@@ -809,8 +924,30 @@ class Board:
 
         self.tag_pairs['SetUp'] = '1'
         self.tag_pairs['FEN'] = self.get_fen()
-        self.moves = []
+
+        if size != (8, 8):
+            self.variant = f'{size[0]}x{size[1]}'
+        elif self.is_check(self.active):
+            self.variant = 'No king'
+
         self.legal_moves = self.get_moves()
+
+        # FEN position is checkmate or stalemate
+        if not self.legal_moves:
+            self.active = 'b' if self.active == 'w' else 'w'
+            if self.is_check(self.active):
+                if self.active == 'w':
+                    self.tag_pairs['Result'] = '1-0'
+                    self.tag_pairs['Termination'] = f'White won by checkmate'
+                else:
+                    self.tag_pairs['Result'] = '0-1'
+                    self.tag_pairs['Termination'] = f'Black won by checkmate'
+            else:
+                self.tag_pairs['Result'] = '1/2-1/2'
+                self.tag_pairs['Termination'] = f'Game drawn by stalemate'
+
+            self.active = 'b' if self.active == 'w' else 'w'
+            self.tag_pairs['EndTime'] = datetime.today().strftime('%H:%M:%S')
 
     def load_pgn(self, pgn: str):
         """
@@ -821,6 +958,82 @@ class Board:
         pgn : str
             PGN to load.
         """
+        self.reset()
+        tag_pairs = {}
+        moves = ''
+
+        # Parse tag pairs and moves
+        pgn = '\n'.join([line.strip() for line in pgn.splitlines()])
+        if pgn.startswith('['):
+            try:
+                tags, moves, *_ = pgn.split('\n\n', maxsplit=2)
+                for tag in tags.splitlines():
+                    if tag.startswith('[') and tag.endswith(']'):
+                        key, value = tag[1:-1].split(maxsplit=1)
+                        if value.startswith('"') and value.endswith('"'):
+                            if len(value) > 2:
+                                tag_pairs[key] = value[1:-1]
+                            else:
+                                tag_pairs[key] = '?'
+                            continue
+                    return
+            except ValueError:
+                return
+        else:
+            moves = pgn.split('\n\n', maxsplit=1)[0]
+
+        if 'FEN' in tag_pairs:
+            self.load_fen(tag_pairs['FEN'])
+        else:
+            self.variant = 'Standard'
+            self.board[0] = [Piece(piece) for piece in 'rnbqkbnr']
+            self.board[1] = [Piece('p') for _ in range(8)]
+            self.board[-2] = [Piece('P') for _ in range(8)]
+            self.board[-1] = [Piece(piece) for piece in 'RNBQKBNR']
+            self.legal_moves = self.get_moves()
+
+        self.tag_pairs.update(tag_pairs)
+
+        # Remove comments
+        moves = list(moves.replace('\\\\', '').replace('\}', ''))
+        while ('{' in moves and '}' in moves and
+               moves.index('{') < moves.index('}')):
+            del moves[moves.index('{'):moves.index('}')+1]
+
+        # Remove variations in parentheses
+        cleaned_moves = []
+        nest = 0
+        for i in moves:
+            if i == '(':
+                nest += 1
+            elif i == ')':
+                nest -= 1
+            elif not nest:
+                cleaned_moves.append(i)
+
+        moves = ''.join(cleaned_moves).split()
+        for move in moves:
+            # Remove move numbers and other non-moves
+            if not (move[0].isalpha() or move == '0-0' or move == '0-0-0'):
+                continue
+            # Remove annotations
+            while not (move[-1].isalnum() or move[-1] in {'+', '#'}):
+                move = move[:-1]
+                if not move:
+                    break
+            # Play through all moves on the board
+            try:
+                self.move(move)
+            except ChessError:
+                return
+
+        # Set "Result" tag pair
+        if moves:
+            result = moves[-1]
+            if result in {'1-0', '1/2-1/2', '0-1'}:
+                self.legal_moves = []
+                self.illegal_moves = []
+                self.tag_pairs['Result'] = result
 
 
 class ChessError(Exception):

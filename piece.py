@@ -1,6 +1,8 @@
 """Piece class."""
 
-pieces = {
+PIECES = {
+    # Letter: (name, value, movement)
+
     # Standard pieces
     'K': ('king', 20,  # moves 1 square in any direction
           ((0, 1, 1), (1, 1, 1))),  # can also castle, royal in standard chess
@@ -53,7 +55,7 @@ pieces = {
           ((0, 1, 1),)),
     'X': ('brick', 0,  # cannot move or be captured, does not have a colour
           ()),
-    'x': ('transparent brick', 0, # same as brick but is transparent
+    'x': ('transparent brick', 0,  # same as brick but is transparent
           ()),
     'Y': ('alibaba', 3,  # dabbaba + alfil
           ((0, 2, 1), (2, 2, 1))),
@@ -145,7 +147,7 @@ class Piece:
         else:
             self.colour = ''
 
-        self.name, self.value, self.movement = pieces.get(letter, pieces['?'])
+        self.name, self.value, self.movement = PIECES.get(letter, PIECES['?'])
         self.moves = 0
         self.distance = 0
 
@@ -153,7 +155,7 @@ class Piece:
         return self.letter != ' '
 
     def __str__(self) -> str:
-        """Return unicode symbol if standard piece else self.letter."""
+        """Return Unicode symbol if standard piece else self.letter."""
         if self.letter in 'KQRBNPkqrbnp':
             return chr(9812 + 'KQRBNPkqrbnp'.index(self.letter))
         return self.letter
