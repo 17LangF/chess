@@ -271,7 +271,6 @@ class TkBoard(tk.Frame):
                     continue
                 self.canvas.unbind(event)
 
-
     def refresh(self, event: tk.Event = None):
         """Redraw board."""
         board = self.board
@@ -647,7 +646,6 @@ class TkBoard(tk.Frame):
             y.append(height - 12)
             colour = self.colours_hex['dark grey']
             font = ('Segoe UI', 7)
-
 
         if self.rotation in {1, 2}:
             y = [height - i for i in y]
@@ -1541,7 +1539,7 @@ class TkBoard(tk.Frame):
         scrollbar = tk.Scrollbar(window, orient='vertical')
         text = tk.Text(window, wrap='word', relief='groove',
                        yscrollcommand=scrollbar.set)
-        
+
         # Add text from saved file
         with open('manual.txt') as file:
             manual = file.read()
