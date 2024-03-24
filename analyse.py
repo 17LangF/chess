@@ -1,9 +1,8 @@
 """Analyse and review chess games."""
 
-import computer
-
 import random
 
+import computer
 
 WIN_CHANGES = {
     # Classification: lower bound of win probability change
@@ -14,7 +13,6 @@ WIN_CHANGES = {
     'mistake': -0.18,
     'blunder': -1.0
 }
-
 
 BOOK_COMMENTS = {
     'best': (
@@ -37,20 +35,14 @@ BOOK_COMMENTS = {
     )
 }
 
-
 COMMENTS = {
-    # 'brilliant': ("brilliant", "a brilliant move!"),
-    # 'great': ("great", "a great move"),
     'best': ("best", "the best move"),
     'excellent': ("excellent", "an excellent move"),
     'good': ("good", "a good move"),
     'book': ("a book move",),
-    # 'forced': ("forced", "the only move"),
     'inaccuracy': ("inaccurate", "an inaccuracy"),
     'mistake': ("a mistake",),
-    # 'miss': ("a miss",),
     'blunder': ("a blunder",),
-    # 'worst': ("the worst move available", "the worst move possible"),
 }
 
 BEST_COMMENTS = {
